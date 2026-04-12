@@ -3,6 +3,7 @@
 import Foundation
 import Vision
 import CoreImage
+import ImageIO
 import AppKit
 import CryptoKit
 
@@ -77,15 +78,18 @@ func extractAndSave(cgImage: CGImage, boundingBox: CGRect, category: String, exp
 @main
 struct SecurityCameraFilter {
     
+    // File extensions considered images when recursing directories.
+    static let allowedExtensions: Set<String> = ["jpg", "jpeg", "png", "gif", "tiff", "tif", "bmp", "heic", "heif", "webp"]
+    
+    // Entry point: parse arguments, expand directories, process images, and set exit code.
     static func main() {
         var confidenceThreshold: Float = 0.6
         var useHumanDetection = false
         var useAnimalDetection = false
         var trainingExportPath: String? = nil
         var imagePaths: [String] = []
-
+        
         let args = CommandLine.arguments.dropFirst()
-
         if args.isEmpty { printUsage(); exit(0) }
         
         var iterator = args.makeIterator()
@@ -94,7 +98,7 @@ struct SecurityCameraFilter {
             case "--help":
                 printUsage(); exit(0)
             case "-v", "--version":
-                // This variable is securely injected at compile time by the Makefile
+                // injected at build time by the Makefile
                 print("classify_image version \(appVersion)"); exit(0)
             case "-l", "--list":
                 printList(); exit(0)
@@ -116,110 +120,178 @@ struct SecurityCameraFilter {
                 imagePaths.append(arg)
             }
         }
-
+        
+        // Expand directories (deep recursion). Non-directory entries and non-existent paths are preserved
+        // so that the loader will produce clear error messages.
+        imagePaths = collectImagePaths(from: imagePaths)
+        
         if imagePaths.isEmpty { printUsage(); exit(0) }
-
-        // --- 3. Image Processing Loop ---
-
+        
         let resultLock = NSLock()
-
+        var foundAnyMatches = false
+        
+        // Process each image and record whether any matched the requested detectors.
         for path in imagePaths {
-            let fileURL = URL(fileURLWithPath: path)
-            
-            // We load as CGImage source first so we have the raw pixel data available for cropping
-            guard let imageSource = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
-                  let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
-                print("\(path) ERROR:Failed_to_load_image")
-                continue
-            }
-            
-            let ciImage = CIImage(cgImage: cgImage)
-            var outputData: [(name: String, confidence: Float)] = []
-            var requestError = false
-            var requests: [VNRequest] = []
-            
-            // 3a. Human Request
-            if useHumanDetection {
-                let request = VNDetectHumanRectanglesRequest { req, error in
-                    if error != nil { resultLock.lock(); requestError = true; resultLock.unlock(); return }
-                    guard let observations = req.results as? [VNHumanObservation] else { return }
-                    
-                    let confident = observations.filter { $0.confidence >= confidenceThreshold }
-                    let items = confident.map { ("person", $0.confidence) }
-                    
-                    // Extract and save crops if training path is set
-                    if let exportPath = trainingExportPath {
-                        for obs in confident {
-                            extractAndSave(cgImage: cgImage, boundingBox: obs.boundingBox, category: "person", exportPath: exportPath)
-                        }
-                    }
-                    
-                    resultLock.lock()
-                    outputData.append(contentsOf: items)
-                    resultLock.unlock()
-                }
-                requests.append(request)
-            }
-            
-            // 3b. Animal Request
-            if useAnimalDetection {
-                let request = VNRecognizeAnimalsRequest { req, error in
-                    if error != nil { resultLock.lock(); requestError = true; resultLock.unlock(); return }
-                    guard let observations = req.results as? [VNRecognizedObjectObservation] else { return }
-                    
-                    let confident = observations.filter { $0.confidence >= confidenceThreshold }
-                    
-                    var items: [(String, Float)] = []
-                    for obs in confident {
-                        if let topLabel = obs.labels.first {
-                            let name = topLabel.identifier.lowercased()
-                            items.append((name, obs.confidence))
-                            
-                            // Extract and save crops
-                            if let exportPath = trainingExportPath {
-                                extractAndSave(cgImage: cgImage, boundingBox: obs.boundingBox, category: name, exportPath: exportPath)
+            let matched = processImage(atPath: path,
+                                       confidenceThreshold: confidenceThreshold,
+                                       useHumanDetection: useHumanDetection,
+                                       useAnimalDetection: useAnimalDetection,
+                                       trainingExportPath: trainingExportPath,
+                                       resultLock: resultLock)
+            if matched { foundAnyMatches = true }
+        }
+        
+        // Exit 0 if any image contained a matching detection; otherwise exit 1.
+        exit(foundAnyMatches ? 0 : 1)
+    }
+    
+    // Recursively collect image files from directory inputs. Returns file paths.
+    static func collectImagePaths(from inputs: [String]) -> [String] {
+        let fm = FileManager.default
+        var results: [String] = []
+        
+        for inputPath in inputs {
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: inputPath, isDirectory: &isDir) {
+                if isDir.boolValue {
+                    let dirURL = URL(fileURLWithPath: inputPath)
+                    if let enumerator = fm.enumerator(at: dirURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles], errorHandler: nil) {
+                        for case let fileURL as URL in enumerator {
+                            do {
+                                let resourceValues = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
+                                if resourceValues.isRegularFile == true {
+                                    let ext = fileURL.pathExtension.lowercased()
+                                    if allowedExtensions.contains(ext) {
+                                        results.append(fileURL.path)
+                                    }
+                                }
+                            } catch {
+                                // Skip files that fail to report properties.
+                                continue
                             }
                         }
                     }
-                    
-                    resultLock.lock()
-                    outputData.append(contentsOf: items)
-                    resultLock.unlock()
+                } else {
+                    // Regular file: keep for processing (the loader will report format/load errors).
+                    results.append(inputPath)
                 }
-                requests.append(request)
-            }
-            
-            // 3c. Generic Fallback (Cannot be cropped)
-            if !useHumanDetection && !useAnimalDetection {
-                let request = VNClassifyImageRequest { req, error in
-                    if error != nil { resultLock.lock(); requestError = true; resultLock.unlock(); return }
-                    guard let observations = req.results as? [VNClassificationObservation] else { return }
-                    
-                    let confident = observations.filter { $0.confidence >= confidenceThreshold }
-                    let items = confident.map { ($0.identifier, $0.confidence) }
-                    
-                    resultLock.lock()
-                    outputData.append(contentsOf: items)
-                    resultLock.unlock()
-                }
-                requests.append(request)
-            }
-            
-            // 4. Execute
-            let handler = VNImageRequestHandler(ciImage: ciImage, options: [:])
-            do { try handler.perform(requests) } 
-            catch { print("\(path) ERROR:Handler_failed"); continue }
-            
-            // 5. Output
-            if requestError {
-                print("\(path) ERROR:Vision_request_failed")
-            } else if outputData.isEmpty {
-                print("\(path) NONE")
             } else {
-                let sortedData = outputData.sorted { $0.confidence > $1.confidence }
-                let formattedStrings = sortedData.map { String(format: "%@:%.2f", $0.name, $0.confidence) }
-                print("\(path) \(formattedStrings.joined(separator: " "))")
+                // Path does not exist: keep it so the main loop prints a clear error.
+                results.append(inputPath)
             }
+        }
+        
+        return results
+    }
+    
+    // Process a single image path. Returns true if any detection exceeded the threshold.
+    static func processImage(atPath path: String,
+                             confidenceThreshold: Float,
+                             useHumanDetection: Bool,
+                             useAnimalDetection: Bool,
+                             trainingExportPath: String?,
+                             resultLock: NSLock) -> Bool
+    {
+        let fileURL = URL(fileURLWithPath: path)
+        
+        // Load CGImage (raw pixels) so detected bounding boxes can be cropped and saved.
+        guard let imageSource = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+            print("\(path) ERROR:Failed_to_load_image")
+            return false
+        }
+        
+        let ciImage = CIImage(cgImage: cgImage)
+        var outputData: [(name: String, confidence: Float)] = []
+        var requestError = false
+        var requests: [VNRequest] = []
+        
+        // Human detection: provides bounding boxes that can be cropped.
+        if useHumanDetection {
+            let request = VNDetectHumanRectanglesRequest { req, error in
+                if error != nil { resultLock.lock(); requestError = true; resultLock.unlock(); return }
+                guard let observations = req.results as? [VNHumanObservation] else { return }
+                
+                let confident = observations.filter { $0.confidence >= confidenceThreshold }
+                let items = confident.map { ("person", $0.confidence) }
+                
+                if let exportPath = trainingExportPath {
+                    for obs in confident {
+                        extractAndSave(cgImage: cgImage, boundingBox: obs.boundingBox, category: "person", exportPath: exportPath)
+                    }
+                }
+                
+                resultLock.lock()
+                outputData.append(contentsOf: items)
+                resultLock.unlock()
+            }
+            requests.append(request)
+        }
+        
+        // Animal detection: labeled regions (cats/dogs etc.) that can be cropped.
+        if useAnimalDetection {
+            let request = VNRecognizeAnimalsRequest { req, error in
+                if error != nil { resultLock.lock(); requestError = true; resultLock.unlock(); return }
+                guard let observations = req.results as? [VNRecognizedObjectObservation] else { return }
+                
+                let confident = observations.filter { $0.confidence >= confidenceThreshold }
+                var items: [(String, Float)] = []
+                
+                for obs in confident {
+                    if let topLabel = obs.labels.first {
+                        let name = topLabel.identifier.lowercased()
+                        items.append((name, obs.confidence))
+                        
+                        if let exportPath = trainingExportPath {
+                            extractAndSave(cgImage: cgImage, boundingBox: obs.boundingBox, category: name, exportPath: exportPath)
+                        }
+                    }
+                }
+                
+                resultLock.lock()
+                outputData.append(contentsOf: items)
+                resultLock.unlock()
+            }
+            requests.append(request)
+        }
+        
+        // Generic classification (no crops) when no specialized detectors requested.
+        if !useHumanDetection && !useAnimalDetection {
+            let request = VNClassifyImageRequest { req, error in
+                if error != nil { resultLock.lock(); requestError = true; resultLock.unlock(); return }
+                guard let observations = req.results as? [VNClassificationObservation] else { return }
+                
+                let confident = observations.filter { $0.confidence >= confidenceThreshold }
+                let items = confident.map { ($0.identifier, $0.confidence) }
+                
+                resultLock.lock()
+                outputData.append(contentsOf: items)
+                resultLock.unlock()
+            }
+            requests.append(request)
+        }
+        
+        // Execute Vision requests; completion handlers above populate outputData.
+        let handler = VNImageRequestHandler(ciImage: ciImage, options: [:])
+        do {
+            try handler.perform(requests)
+        } catch {
+            print("\(path) ERROR:Handler_failed")
+            return false
+        }
+        
+        // Print results in the same format as before and return whether any matches were found.
+        if requestError {
+            print("\(path) ERROR:Vision_request_failed")
+            return false
+        } else if outputData.isEmpty {
+            print("\(path) NONE")
+            return false
+        } else {
+            let sortedData = outputData.sorted { $0.confidence > $1.confidence }
+            let formattedStrings = sortedData.map { String(format: "%@:%.2f", $0.name, $0.confidence) }
+            print("\(path) \(formattedStrings.joined(separator: " "))")
+            return true
         }
     }
 }
