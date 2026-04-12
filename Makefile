@@ -21,41 +21,53 @@ all: build
 
 # Generate a temporary Swift file containing the Git version string
 $(VERSION_FILE):
-	@echo "Injecting version: $(GIT_VERSION)"
-	@echo 'let appVersion = "$(GIT_VERSION)"' > $(VERSION_FILE)
+@echo "Injecting version: $(GIT_VERSION)"
+@echo 'let appVersion = "$(GIT_VERSION)"' > $(VERSION_FILE)
 
 # Compile the main script and the temporary version file together
 build: $(VERSION_FILE)
-	$(SWIFTC) $(FLAGS) $(SRC) $(VERSION_FILE) -o $(TARGET)
-	@rm -f $(VERSION_FILE) # Clean up the temp file immediately after building
+$(SWIFTC) $(FLAGS) $(SRC) $(VERSION_FILE) -o $(TARGET)
+@rm -f $(VERSION_FILE) # Clean up the temp file immediately after building
 
 clean:
-	rm -f $(TARGET) $(VERSION_FILE)
+rm -f $(TARGET) $(VERSION_FILE)
 
-# Install builds the binary and assembles a script-bundle (Revisor.scptd) in the user's
-# Mail Application Scripts directory. The bundle's Resources folder contains the binary
-# and helper scripts so the AppleScript can locate them via `path to resource`.
+# Install builds the binary and assembles a script bundle (Revisor.scptd)
+# in the user's Mail Application Scripts directory. The bundle's Resources
+# folder contains the binary, helper scripts and compiled AppleScript.
 install: build
-	@echo "Installing Revisor.scptd bundle to $(PREFIX)"
-	# Create the bundle structure
-	mkdir -p "$(PREFIX)/Revisor.scptd/Contents/Resources"
-	# Copy the compiled tool into the bundle Resources
-	install -m 755 "$(TARGET)" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSecurityCamera"
-	# Copy the worker script
-	if [ -f "FilterSecurityCameraWorker.sh" ]; then \
-		install -m 755 "FilterSecurityCameraWorker.sh" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSecurityCameraWorker.sh"; \
-	fi
-	# Copy the AppleScript (main script) into the bundle Resources
-	if [ -f "FilterSecurityCamera.scpt" ]; then \
-		install -m 644 "FilterSecurityCamera.scpt" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSecurityCamera.scpt"; \
-	fi
-	# Install Info.plist if present in the repo; otherwise create an empty placeholder
-	if [ -f "Revisor.scptd/Contents/Info.plist" ]; then \
-		install -m 644 "Revisor.scptd/Contents/Info.plist" "$(PREFIX)/Revisor.scptd/Contents/Info.plist"; \
-	else \
-		install -m 644 /dev/null "$(PREFIX)/Revisor.scptd/Contents/Info.plist"; \
-	fi
-
-uninstall:
-	# Remove the entire bundle
-	rm -rf "$(PREFIX)/Revisor.scptd"
+@echo "Installing Revisor.scptd bundle to $(PREFIX)"
+# Create the bundle structure (Scripts folder will contain the compiled main script)
+mkdir -p "$(PREFIX)/Revisor.scptd/Contents/Resources/Scripts"
+# Copy the compiled tool into the bundle Resources
+install -m 755 "$(TARGET)" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSecurityCamera"
+# Copy the worker script
+if [ -f "FilterSecurityCameraWorker.sh" ]; then \
+install -m 755 "FilterSecurityCameraWorker.sh" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSecurityCameraWorker.sh"; \
+fi
+# Compile the AppleScript source into the bundle Scripts/main.scpt (compiled)
+if [ -f "FilterSecurityCamera.applescript" ]; then \
+if command -v osacompile >/dev/null 2>&1; then \
+osacompile -o "$(PREFIX)/Revisor.scptd/Contents/Resources/Scripts/main.scpt" "FilterSecurityCamera.applescript"; \
+else \
+echo "Warning: osacompile not found; copying source as main.scpt (uncompiled)"; \
+install -m 644 "FilterSecurityCamera.applescript" "$(PREFIX)/Revisor.scptd/Contents/Resources/Scripts/main.scpt"; \
+fi \
+fi
+# Generate Info.plist with version information so the bundle includes the Git version
+@mkdir -p "$(PREFIX)/Revisor.scptd/Contents"
+@cat > "$(PREFIX)/Revisor.scptd/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.andrey.revisor</string>
+    <key>CFBundleName</key>
+    <string>Revisor</string>
+    <key>CFBundleVersion</key>
+    <string>$(GIT_VERSION)</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(GIT_VERSION)</string>
+</dict>
+</plist>
