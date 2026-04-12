@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "container:classify_image.swift">
+   </FileRef>
+   <FileRef
+      location = "container:LICENSE">
+   </FileRef>
+   <FileRef
+      location = "container:Makefile">
+   </FileRef>
+   <FileRef
+      location = "container:README.md">
+   </FileRef>
+   <FileRef
+      location = "absolute:/Users/andrey/Projects/revisor/FilterSecurityCamera.scpt">
+   </FileRef>
+   <FileRef
+      location = "absolute:/Users/andrey/Projects/revisor/revisor_worker.sh">
+   </FileRef>
+</Workspace>
