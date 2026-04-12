@@ -17,6 +17,9 @@
       location = "absolute:/Users/andrey/Projects/revisor/FilterSecurityCamera.scpt">
    </FileRef>
    <FileRef
-      location = "absolute:/Users/andrey/Projects/revisor/revisor_worker.sh">
+      location = "group:FilterSecurityCameraWorker.sh">
+   </FileRef>
+   <FileRef
+      location = "group:GetMessageIDAccount.scpt">
    </FileRef>
 </Workspace>

@@ -20,7 +20,7 @@ tell application "Mail"
     set theMessage to first message of (mailbox "INBOX" of theAccount) whose id is $MSG_ID
     set theAttachments to every mail attachment of theMessage
     
-    -- Convert POSIX path to HFS path for Mail's sandbox
+    -- Convert POSIX path to HFS path for Mail sandbox
     set folderHFS to (POSIX file "$TEMP_DIR") as string
     
     repeat with eachAttachment in theAttachments
@@ -38,7 +38,7 @@ sleep 2
 PERSON_FOUND=false
 for img in "$TEMP_DIR"/*; do
     if [ -f "$img" ]; then
-        if $TOOL_PATH -h "$img"; then
+        if "$TOOL_PATH" -h "$img"; then
             PERSON_FOUND=true
             break
         fi
