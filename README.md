@@ -1,0 +1,3 @@
+This project is a lightweight, compiled Swift command-line tool designed to intelligently filter and process security camera snapshots locally on macOS. Leveraging Apple’s native Vision framework, it bypasses the need for third-party cloud APIs to ensure complete privacy.
+
+The tool features dedicated detection modes for humans and animals, alongside generic scene classification. Additionally, it serves as an automated data pipeline: it can dynamically crop detected objects, apply SHA-256 hashing for deduplication, and organize the images into labeled directories, instantly building a clean dataset ready for custom Core ML model training.
