@@ -41,14 +41,13 @@ install: build
 @mkdir -p "$(PREFIX)"
 # If osacompile is available, compile the AppleScript source into a .scptd bundle
 if command -v osacompile >/dev/null 2>&1; then \
-tempdir=$$(mktemp -d); \
-echo "Compiling FilterSecurityCamera.applescript into $$tempdir/Revisor.scptd"; \
-osacompile -o "$$tempdir/Revisor.scptd" "FilterSecurityCamera.applescript" || { echo "osacompile failed"; rm -rf "$$tempdir"; exit 1; }; \
-# Remove any previous install and move the compiled bundle into place
+tmpdir=$$(mktemp -d); \
+echo "Compiling FilterSecurityCamera.applescript into $$tmpdir/Revisor.scptd"; \
+osacompile -o "$$tmpdir/Revisor.scptd" "FilterSecurityCamera.applescript" || { echo "osacompile failed"; rm -rf "$$tmpdir"; exit 1; }; \
+# Replace any existing installation
 rm -rf "$(PREFIX)/Revisor.scptd"; \
-mv "$$tempdir/Revisor.scptd" "$(PREFIX)/Revisor.scptd"; \
-# Normalize script location: some osacompile versions place the compiled script
-# at Contents/Resources/main.scpt; ensure it's under Resources/Scripts/main.scpt
+mv "$$tmpdir/Revisor.scptd" "$(PREFIX)/Revisor.scptd"; \
+# Ensure compiled script is under Resources/Scripts/main.scpt
 if [ -f "$(PREFIX)/Revisor.scptd/Contents/Resources/main.scpt" ]; then \
 mkdir -p "$(PREFIX)/Revisor.scptd/Contents/Resources/Scripts"; \
 mv "$(PREFIX)/Revisor.scptd/Contents/Resources/main.scpt" "$(PREFIX)/Revisor.scptd/Contents/Resources/Scripts/main.scpt"; \
@@ -58,54 +57,16 @@ install -m 755 "$(TARGET)" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSec
 if [ -f "FilterSecurityCameraWorker.sh" ]; then \
 install -m 755 "FilterSecurityCameraWorker.sh" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSecurityCameraWorker.sh"; \
 fi; \
-# Ensure Info.plist has version keys set; prefer PlistBuddy if available
-plist="$(PREFIX)/Revisor.scptd/Contents/Info.plist"; \
-if [ -f "$$plist" ]; then \
-if command -v /usr/libexec/PlistBuddy >/dev/null 2>&1; then \
-/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $(GIT_VERSION)" "$$plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(GIT_VERSION)" "$$plist"; \
-/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $(GIT_VERSION)" "$$plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(GIT_VERSION)" "$$plist"; \
-else \
-echo "PlistBuddy not found; writing minimal Info.plist (may overwrite keys)"; \
-cat > "$$plist" <<EOFpl
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-<key>CFBundleIdentifier</key>
-<string>com.andrey.revisor</string>
-<key>CFBundleName</key>
-<string>Revisor</string>
-<key>CFBundleVersion</key>
-<string>$(GIT_VERSION)</string>
-<key>CFBundleShortVersionString</key>
-<string>$(GIT_VERSION)</string>
-</dict>
-</plist>
-EOFpl
-; \
+# If a repo-provided Info.plist exists, copy it
+if [ -f "Revisor.scptd/Contents/Info.plist" ]; then \
+install -m 644 "Revisor.scptd/Contents/Info.plist" "$(PREFIX)/Revisor.scptd/Contents/Info.plist"; \
 fi; \
-else \
-# Create minimal Info.plist
-mkdir -p "$(PREFIX)/Revisor.scptd/Contents"; \
-cat > "$(PREFIX)/Revisor.scptd/Contents/Info.plist" <<EOFpl
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-<key>CFBundleIdentifier</key>
-<string>com.andrey.revisor</string>
-<key>CFBundleName</key>
-<string>Revisor</string>
-<key>CFBundleVersion</key>
-<string>$(GIT_VERSION)</string>
-<key>CFBundleShortVersionString</key>
-<string>$(GIT_VERSION)</string>
-</dict>
-</plist>
-EOFpl
-; \
+# Set version keys in Info.plist if possible
+if [ -f "$(PREFIX)/Revisor.scptd/Contents/Info.plist" ] && command -v /usr/libexec/PlistBuddy >/dev/null 2>&1; then \
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(GIT_VERSION)" "$(PREFIX)/Revisor.scptd/Contents/Info.plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $(GIT_VERSION)" "$(PREFIX)/Revisor.scptd/Contents/Info.plist"; \
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(GIT_VERSION)" "$(PREFIX)/Revisor.scptd/Contents/Info.plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $(GIT_VERSION)" "$(PREFIX)/Revisor.scptd/Contents/Info.plist"; \
 fi; \
-rm -rf "$$tempdir"; \
+rm -rf "$$tmpdir"; \
 else \
 # Fallback: assemble bundle manually (no compiled script)
 echo "osacompile not found; assembling bundle manually in $(PREFIX)"; \
@@ -113,7 +74,9 @@ mkdir -p "$(PREFIX)/Revisor.scptd/Contents/Resources/Scripts"; \
 install -m 644 "FilterSecurityCamera.applescript" "$(PREFIX)/Revisor.scptd/Contents/Resources/Scripts/main.scpt"; \
 install -m 755 "$(TARGET)" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSecurityCamera"; \
 if [ -f "FilterSecurityCameraWorker.sh" ]; then install -m 755 "FilterSecurityCameraWorker.sh" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSecurityCameraWorker.sh"; fi; \
-cat > "$(PREFIX)/Revisor.scptd/Contents/Info.plist" <<EOFpl
+if [ -f "Revisor.scptd/Contents/Info.plist" ]; then install -m 644 "Revisor.scptd/Contents/Info.plist" "$(PREFIX)/Revisor.scptd/Contents/Info.plist"; else \
+mkdir -p "$(PREFIX)/Revisor.scptd/Contents"; \
+cat > "$(PREFIX)/Revisor.scptd/Contents/Info.plist" <<INFOPLIST; \
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -128,8 +91,8 @@ cat > "$(PREFIX)/Revisor.scptd/Contents/Info.plist" <<EOFpl
 <string>$(GIT_VERSION)</string>
 </dict>
 </plist>
-EOFpl
-; \
+INFOPLIST
+fi; \
 fi
 
 uninstall:
