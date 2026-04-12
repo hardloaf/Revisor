@@ -1,6 +1,6 @@
 # classify_image
 
-A lightweight Swift command-line tool that uses Apples Vision framework to detect humans, animals, or general objects in images. Designed for local processing (no cloud uploads), it can also extract cropped examples for building training datasets.
+A lightweight Swift command-line tool that uses Apple's Vision framework to detect humans, animals, or general objects in images. Designed for local processing (no cloud uploads), it can also extract cropped examples for building training datasets.
 
 ## Features
 
