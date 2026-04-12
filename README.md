@@ -40,7 +40,11 @@ Options
 Notes
 
 - Exit codes: 0 if at least one image across inputs matched; 1 otherwise.
-- The AppleScript locates resources using `POSIX path of (path to resource "")`, so the worker/binary are always looked up inside the bundle and no hardcoded paths are necessary.
+- The AppleScript locates resources using POSIX path of (path to resource workerName). For example:
+
+  set workerPath to POSIX path of (path to resource workerName)
+
+  This ensures the worker and binary are located inside the bundle and avoids hardcoded paths.
 
 Development
 
@@ -50,3 +54,13 @@ Development
 License
 
 MIT — see LICENSE
+
+## Logging
+
+Revisor writes debug logs exclusively to /var/log/revisor.log. If that file is missing or not writable, logging will be silent — create the file and adjust permissions to enable logging.
+
+Logs include local-time timestamps and a component tag (e.g., [installer], [worker], [CLI], [AppleScript]).
+
+The worker script logs every processing stage: attachment saving, number of files found, per-file tool invocation and its full output, detection results, message move actions, and cleanup.
+
+If you prefer a different log location, adjust the scripts to set LOG_FILE accordingly.

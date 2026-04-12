@@ -13,11 +13,20 @@ BUNDLE_DIR="$PREFIX/Revisor.scptd"
 RES_DIR="$BUNDLE_DIR/Contents/Resources"
 SCRIPTS_DIR="$RES_DIR/Scripts"
 
+# Logging target: strictly /var/log/revisor.log. If not writable, logging is skipped.
+LOG_FILE="/var/log/revisor.log"
+log() {
+  ts="$(date +'%Y-%m-%d %H:%M:%S%z')"
+  echo "$ts [installer] $*" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+log "Installer invoked. PREFIX=$PREFIX TARGET=$TARGET GIT_VERSION=$GIT_VERSION REPO_DIR=$REPO_DIR"
+
 mkdir -p "$(dirname "$BUNDLE_DIR")"
 
 if command -v osacompile >/dev/null 2>&1; then
   tmpdir=$(mktemp -d)
-  echo "Compiling $SRC_SCRIPT into $tmpdir/Revisor.scptd"
+  log "osacompile available; compiling $SRC_SCRIPT into $tmpdir/Revisor.scptd"
   osacompile -o "$tmpdir/Revisor.scptd" "$SRC_SCRIPT"
   rm -rf "$BUNDLE_DIR"
   mv "$tmpdir/Revisor.scptd" "$BUNDLE_DIR"
@@ -26,24 +35,22 @@ if command -v osacompile >/dev/null 2>&1; then
     mkdir -p "$SCRIPTS_DIR"
     mv "$BUNDLE_DIR/Contents/Resources/main.scpt" "$SCRIPTS_DIR/main.scpt"
   fi
+  log "Compiled bundle moved to $BUNDLE_DIR"
 else
-  echo "osacompile not found; assembling bundle manually in $PREFIX"
-  mkdir -p "$SCRIPTS_DIR"
-  cp "$SRC_SCRIPT" "$SCRIPTS_DIR/main.scpt"
-  mkdir -p "$RES_DIR"
-  rm -rf "$BUNDLE_DIR"
-  mkdir -p "$BUNDLE_DIR/Contents/Resources"
+  log "osacompile not found"
 fi
 
 # Copy binary and worker script into Resources
 if [ -f "$BINARY" ]; then
   install -m 755 "$BINARY" "$RES_DIR/$TARGET"
+  log "Installed binary to $RES_DIR/$TARGET"
 else
-  echo "Warning: binary $BINARY not found; build first"
+  log "Warning: binary $BINARY not found; build first"
 fi
 
 if [ -f "$WORKER_SCRIPT" ]; then
   install -m 755 "$WORKER_SCRIPT" "$RES_DIR/$(basename "$WORKER_SCRIPT")"
+  log "Installed worker script to $RES_DIR/$(basename "$WORKER_SCRIPT")"
 fi
 
 # Ensure Info.plist exists
@@ -66,12 +73,14 @@ if [ ! -f "$PLIST" ]; then
 </dict>
 </plist>
 INFOPLIST
+  log "Created Info.plist with version $GIT_VERSION"
 fi
 
 # If PlistBuddy is available, set version fields
 if command -v /usr/libexec/PlistBuddy >/dev/null 2>&1; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GIT_VERSION" "$PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $GIT_VERSION" "$PLIST"
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $GIT_VERSION" "$PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $GIT_VERSION" "$PLIST"
+  log "Updated Info.plist with version keys via PlistBuddy"
 fi
 
-echo "Installed bundle to $BUNDLE_DIR"
+log "Installed bundle to $BUNDLE_DIR"

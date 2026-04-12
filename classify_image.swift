@@ -17,6 +17,35 @@ import ImageIO
 import AppKit
 import CryptoKit
 
+// Simple file logger used by the CLI.
+// Writes only to /var/log/revisor.log. If the file doesn't exist or is not writable,
+// logging is silently skipped (per project policy).
+struct Logger {
+    static let filePath = "/var/log/revisor.log"
+
+    static func log(_ message: String) {
+        let fm = FileManager.default
+        // Strict behavior: do not create the log file. Only write if it already exists
+        guard fm.isWritableFile(atPath: filePath) else { return }
+
+        // Local timezone timestamp
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd HH:mm:ssZ"
+        df.locale = Locale.current
+        df.timeZone = TimeZone.current
+        let ts = df.string(from: Date())
+
+        let line = "\(ts) [CLI] \(message)\n"
+        guard let data = line.data(using: .utf8) else { return }
+
+        if let fh = FileHandle(forWritingAtPath: filePath) {
+            fh.seekToEndOfFile()
+            fh.write(data)
+            fh.closeFile()
+        }
+    }
+}
+
 // --- 1. Helper Functions ---
 
 func printUsage() {
@@ -77,9 +106,10 @@ func extractAndSave(cgImage: CGImage, boundingBox: CGRect, category: String, exp
         // Only write if it doesn't already exist
         if !FileManager.default.fileExists(atPath: fileURL.path) {
             try jpegData.write(to: fileURL)
+            Logger.log("Saved crop to \(fileURL.path) [category=\(category)]")
         }
     } catch {
-        print("Error saving crop: \(error.localizedDescription)")
+        Logger.log("Error saving crop: \(error.localizedDescription)")
     }
 }
 
@@ -93,6 +123,8 @@ struct SecurityCameraFilter {
     
     // Entry point: parse arguments, expand directories, process images, and set exit code.
     static func main() {
+        Logger.log("CLI started with args: \(CommandLine.arguments.joined(separator: " "))")
+
         var confidenceThreshold: Float = 0.6
         var useHumanDetection = false
         var useAnimalDetection = false
@@ -134,6 +166,7 @@ struct SecurityCameraFilter {
         // Expand directories (deep recursion). Non-directory entries and non-existent paths are preserved
         // so that the loader will produce clear error messages.
         imagePaths = collectImagePaths(from: imagePaths)
+        Logger.log("Expanded image list: \(imagePaths.count) entries")
         
         if imagePaths.isEmpty { printUsage(); exit(0) }
         
@@ -148,9 +181,11 @@ struct SecurityCameraFilter {
                                        useAnimalDetection: useAnimalDetection,
                                        trainingExportPath: trainingExportPath,
                                        resultLock: resultLock)
+            Logger.log("Processed \(path): matched=\(matched)")
             if matched { foundAnyMatches = true }
         }
         
+        Logger.log("CLI finished. foundAnyMatches=\(foundAnyMatches)")
         // Exit 0 if any image contained a matching detection; otherwise exit 1.
         exit(foundAnyMatches ? 0 : 1)
     }
@@ -202,11 +237,13 @@ struct SecurityCameraFilter {
                              trainingExportPath: String?,
                              resultLock: NSLock) -> Bool
     {
+        Logger.log("Starting processing for \(path)")
         let fileURL = URL(fileURLWithPath: path)
         
         // Load CGImage (raw pixels) so detected bounding boxes can be cropped and saved.
         guard let imageSource = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
               let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+            Logger.log("Failed to load image \(path)")
             print("\(path) ERROR:Failed_to_load_image")
             return false
         }
@@ -286,21 +323,26 @@ struct SecurityCameraFilter {
         do {
             try handler.perform(requests)
         } catch {
+            Logger.log("Handler failed for \(path): \(error.localizedDescription)")
             print("\(path) ERROR:Handler_failed")
             return false
         }
         
         // Print results in the same format as before and return whether any matches were found.
         if requestError {
+            Logger.log("Vision request failed for \(path)")
             print("\(path) ERROR:Vision_request_failed")
             return false
         } else if outputData.isEmpty {
+            Logger.log("No detections for \(path)")
             print("\(path) NONE")
             return false
         } else {
             let sortedData = outputData.sorted { $0.confidence > $1.confidence }
             let formattedStrings = sortedData.map { String(format: "%@:%.2f", $0.name, $0.confidence) }
-            print("\(path) \(formattedStrings.joined(separator: " "))")
+            let outLine = formattedStrings.joined(separator: " ")
+            Logger.log("Detections for \(path): \(outLine)")
+            print("\(path) \(outLine)")
             return true
         }
     }
