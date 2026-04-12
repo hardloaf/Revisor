@@ -4,7 +4,8 @@
 MSG_ID=$1
 ACCOUNT_NAME=$2
 TEMP_DIR="$HOME/Downloads/.tmp/revisor_temp_$MSG_ID"
-TOOL_PATH="/usr/local/bin/classify_image"
+MAIL_SCRIPTS="$HOME/Library/Application Scripts/com.apple.mail"
+TOOL_PATH="$MAIL_SCRIPTS/FilterSecurityCamera"
 
 # 1. Wait a moment for Mail to finish writing the database entry
 sleep 2

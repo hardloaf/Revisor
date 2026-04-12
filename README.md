@@ -1,4 +1,4 @@
-# classify_image
+# FilterSecurityCamera
 
 A lightweight Swift command-line tool that uses Apple's Vision framework to detect humans, animals, or general objects in images. Designed for local processing (no cloud uploads), it can also extract cropped examples for building training datasets.
 
@@ -19,11 +19,11 @@ Build with the included Makefile (recommended):
 
 Or compile directly with Swift:
 
-    swiftc classify_image.swift -o classify_image
+    swiftc classify_image.swift -o FilterSecurityCamera
 
 ## Usage
 
-    ./classify_image [options] <file-or-dir> [more...]
+    ./FilterSecurityCamera [options] <file-or-dir> [more...]
 
 Options:
 
@@ -39,15 +39,15 @@ Examples:
 
 - Classify a single image:
 
-      ./classify_image photo.jpg
+      ./FilterSecurityCamera photo.jpg
 
 - Recursively process a directory and export training crops:
 
-      ./classify_image -a -t ./training_data /path/to/images
+      ./FilterSecurityCamera -a -t ./training_data /path/to/images
 
 - Run human-only detection with a higher confidence threshold:
 
-      ./classify_image -h -c 0.75 /path/to/camera_feed
+      ./FilterSecurityCamera -h -c 0.75 /path/to/camera_feed
 
 ## Output format
 

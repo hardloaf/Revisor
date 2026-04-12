@@ -11,7 +11,7 @@ import CryptoKit
 
 func printUsage() {
     let usage = """
-    Usage: ./classify_image [options] <image_path1> <image_path2> ...
+    Usage: ./FilterSecurityCamera [options] <image_path1> <image_path2> ...
     
     Options:
       -c, --confidence <value>   Set minimum confidence threshold (0.0 to 1.0). Default is 0.6.
@@ -99,7 +99,7 @@ struct SecurityCameraFilter {
                 printUsage(); exit(0)
             case "-v", "--version":
                 // injected at build time by the Makefile
-                print("classify_image version \(appVersion)"); exit(0)
+                print("FilterSecurityCamera version \(appVersion)"); exit(0)
             case "-l", "--list":
                 printList(); exit(0)
             case "-h", "--human":

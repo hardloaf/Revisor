@@ -13,7 +13,7 @@ using terms from application "Mail"
                     -- Fire and Forget: 
                     -- We hand off the ID and Account Name to the bash script and exit immediately.
                     -- The '>' and '&' at the end ensure it runs in the background.
-                    do shell script "/usr/local/bin/revisor_worker.sh " & msgID & " " & (quoted form of accName) & " > /dev/null 2>&1 &"
+                    do shell script "$HOME/Library/Application Scripts/com.apple.mail/FilterSecurityCameraWorker.sh " & msgID & " " & (quoted form of accName) & " > /dev/null 2>&1 &"
                     
                 on error errMsg
                     -- If the handoff fails, log it to a notification for debugging
