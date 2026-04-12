@@ -7,7 +7,7 @@ TEMP_DIR="$HOME/Downloads/.tmp/revisor_temp_$MSG_ID"
 # Determine the directory this worker script lives in. When installed inside a script bundle
 # this will be the bundle's Resources folder. Use that location to find the bundled tool.
 WORKER_DIR="$(cd "$(dirname "$0")" && pwd)"
-TOOL_PATH="$$WORKER_DIR/FilterSecurityCamera"
+TOOL_PATH="$WORKER_DIR/FilterSecurityCamera"
 
 # 1. Wait a moment for Mail to finish writing the database entry
 sleep 2
