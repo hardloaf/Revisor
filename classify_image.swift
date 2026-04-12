@@ -1,4 +1,14 @@
-//#!/usr/bin/env swift
+/*
+Revisor - FilterSecurityCamera
+
+A small CLI that uses Apple's Vision framework to detect humans, animals, or general objects
+in images. Designed to be packaged inside Revisor.scptd for Mail integration; it also runs
+standalone from the command line.
+
+Exit codes:
+ - 0  At least one image matched the configured detection threshold
+ - 1  No images matched (or inputs were empty)
+*/
 
 import Foundation
 import Vision

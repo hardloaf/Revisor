@@ -2,19 +2,10 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "container:classify_image.swift">
+      location = "group:classify_image.swift">
    </FileRef>
    <FileRef
-      location = "container:LICENSE">
-   </FileRef>
-   <FileRef
-      location = "container:Makefile">
-   </FileRef>
-   <FileRef
-      location = "container:README.md">
-   </FileRef>
-   <FileRef
-      location = "absolute:/Users/andrey/Projects/revisor/FilterSecurityCamera.scpt">
+      location = "group:FilterSecurityCamera.applescript">
    </FileRef>
    <FileRef
       location = "group:FilterSecurityCameraWorker.sh">
@@ -22,4 +13,23 @@
    <FileRef
       location = "group:GetMessageIDAccount.scpt">
    </FileRef>
+   <FileRef
+      location = "group:LICENSE">
+   </FileRef>
+   <FileRef
+      location = "group:Makefile">
+   </FileRef>
+   <FileRef
+      location = "group:README.md">
+   </FileRef>
+   <FileRef
+      location = "group:revisor.xcworkspace">
+   </FileRef>
+   <Group
+      location = "group:scripts"
+      name = "scripts">
+      <FileRef
+         location = "group:install_bundle.sh">
+      </FileRef>
+   </Group>
 </Workspace>

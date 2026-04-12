@@ -1,31 +1,33 @@
-# FilterSecurityCamera
+# Revisor / FilterSecurityCamera
 
-A lightweight Swift command-line tool that uses Apple's Vision framework to detect humans, animals, or general objects in images. Designed for local processing (no cloud uploads), it can also extract cropped examples for building training datasets.
+FilterSecurityCamera is a small Swift command-line tool that uses Apple's Vision framework to detect humans, animals, or general objects in images. It is designed to run locally (no cloud uploads). For Mail integration the project provides a Revisor.scptd AppleScript bundle that contains the compiled AppleScript, a worker shell script, and the compiled FilterSecurityCamera binary.
 
-## Features
+Key points
+- The repository supplies both a CLI (FilterSecurityCamera) and an AppleScript-based Mail integration (Revisor.scptd).
+- `make` builds the FilterSecurityCamera binary.
+- `make install` (recommended) compiles the AppleScript and installs a Revisor.scptd bundle to `~/Library/Application Scripts/com.apple.mail` containing the binary and helper scripts.
 
-- Human detection mode (VNDetectHumanRectangles)
-- Animal detection mode (VNRecognizeAnimals)
-- Generic image classification (VNClassifyImage)
-- Recursive directory traversal: provide directories and the tool will deep-recurse image files
-- Training export: crop detected objects and save into labeled folders with SHA-256 deduplication
-- Configurable confidence threshold and simple output format for automation
+Installation
 
-## Installation
-
-Build with the included Makefile (recommended):
+1. Build the tool:
 
     make
 
-Or compile directly with Swift:
+2. Install the script bundle (requires `osacompile` to produce a compiled script bundle; the Makefile falls back to a manual assembly when `osacompile` is unavailable):
 
-    swiftc classify_image.swift -o FilterSecurityCamera
+    make install
 
-## Usage
+This places `Revisor.scptd` in `~/Library/Application Scripts/com.apple.mail`. The compiled AppleScript will live at `Revisor.scptd/Contents/Resources/Scripts/main.scpt` and the bundled binary is located at `Revisor.scptd/Contents/Resources/FilterSecurityCamera`.
+
+Usage
+
+- Run the CLI directly:
 
     ./FilterSecurityCamera [options] <file-or-dir> [more...]
 
-Options:
+- Configure Mail: create a rule that runs the compiled `main.scpt` (the Mail rule should call the script bundle's `main.scpt`). The AppleScript locates the worker script inside the bundle and hands off message processing to it.
+
+Options
 
 - `-c`, `--confidence <value>`  Set minimum confidence threshold (0.0 to 1.0). Default: 0.6
 - `-h`, `--human`              Enable dedicated human detection
@@ -35,32 +37,16 @@ Options:
 - `-v`, `--version`            Print build/version information
 - `--help`                     Show usage
 
-Examples:
+Notes
 
-- Classify a single image:
+- Exit codes: 0 if at least one image across inputs matched; 1 otherwise.
+- The AppleScript locates resources using `POSIX path of (path to resource "")`, so the worker/binary are always looked up inside the bundle and no hardcoded paths are necessary.
 
-      ./FilterSecurityCamera photo.jpg
+Development
 
-- Recursively process a directory and export training crops:
+- The AppleScript source is `FilterSecurityCamera.applescript` (compiled during install into the bundle).
+- The worker script is `FilterSecurityCameraWorker.sh` and is installed into the bundle Resources.
 
-      ./FilterSecurityCamera -a -t ./training_data /path/to/images
+License
 
-- Run human-only detection with a higher confidence threshold:
-
-      ./FilterSecurityCamera -h -c 0.75 /path/to/camera_feed
-
-## Output format
-
-Each processed path prints either a list of `label:confidence` tokens, `NONE` (no detections above threshold), or `ERROR:<code>` for failures. Example:
-
-    /path/to/img.jpg person:0.98 dog:0.87
-    /path/to/blank.jpg NONE
-
-Exit codes:
-
-- `0` — at least one image (across all inputs) contained a detection meeting the configured threshold
-- `1` — no detections met the threshold (or the set of inputs was empty)
-
-## License
-
-This project is released under the MIT License — see the bundled `LICENSE` file for details.
+MIT — see LICENSE
