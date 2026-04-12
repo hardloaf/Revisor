@@ -32,25 +32,30 @@ build: $(VERSION_FILE)
 clean:
 	rm -f $(TARGET) $(VERSION_FILE)
 
-# Install copies the built tools and companion scripts into the user's
-# Mail Application Scripts directory so they can be used by Mail rules.
-# Uses 'install' to ensure the correct mode is set and files are owned by
-# the current user.
+# Install builds the binary and assembles a script-bundle (Revisor.scptd) in the user's
+# Mail Application Scripts directory. The bundle's Resources folder contains the binary
+# and helper scripts so the AppleScript can locate them via `path to resource`.
 install: build
-	@echo "Installing to $(PREFIX)"
-	mkdir -p "$(PREFIX)"
-	# Install main binary
-	install -m 755 "$(TARGET)" "$(PREFIX)/FilterSecurityCamera"
-	# Install worker script if present
+	@echo "Installing Revisor.scptd bundle to $(PREFIX)"
+	# Create the bundle structure
+	mkdir -p "$(PREFIX)/Revisor.scptd/Contents/Resources"
+	# Copy the compiled tool into the bundle Resources
+	install -m 755 "$(TARGET)" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSecurityCamera"
+	# Copy the worker script
 	if [ -f "FilterSecurityCameraWorker.sh" ]; then \
-		install -m 755 "FilterSecurityCameraWorker.sh" "$(PREFIX)/FilterSecurityCameraWorker.sh"; \
+		install -m 755 "FilterSecurityCameraWorker.sh" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSecurityCameraWorker.sh"; \
 	fi
-	# Install AppleScript bundle if present
+	# Copy the AppleScript (main script) into the bundle Resources
 	if [ -f "FilterSecurityCamera.scpt" ]; then \
-		install -m 644 "FilterSecurityCamera.scpt" "$(PREFIX)/FilterSecurityCamera.scpt"; \
+		install -m 644 "FilterSecurityCamera.scpt" "$(PREFIX)/Revisor.scptd/Contents/Resources/FilterSecurityCamera.scpt"; \
+	fi
+	# Install Info.plist if present in the repo; otherwise create an empty placeholder
+	if [ -f "Revisor.scptd/Contents/Info.plist" ]; then \
+		install -m 644 "Revisor.scptd/Contents/Info.plist" "$(PREFIX)/Revisor.scptd/Contents/Info.plist"; \
+	else \
+		install -m 644 /dev/null "$(PREFIX)/Revisor.scptd/Contents/Info.plist"; \
 	fi
 
 uninstall:
-	rm -f "$(PREFIX)/FilterSecurityCamera"
-	rm -f "$(PREFIX)/FilterSecurityCameraWorker.sh"
-	rm -f "$(PREFIX)/FilterSecurityCamera.scpt"
+	# Remove the entire bundle
+	rm -rf "$(PREFIX)/Revisor.scptd"

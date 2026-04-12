@@ -12,8 +12,11 @@ using terms from application "Mail"
                     
                     -- Fire and Forget: 
                     -- We hand off the ID and Account Name to the bash script and exit immediately.
-                    -- The '>' and '&' at the end ensure it runs in the background.
-                    do shell script "$HOME/Library/Application Scripts/com.apple.mail/FilterSecurityCameraWorker.sh " & msgID & " " & (quoted form of accName) & " > /dev/null 2>&1 &"
+                    -- The worker script is placed inside this script bundle's Resources folder, so we locate it dynamically.
+                    set resourceFolder to POSIX path of (path to resource "")
+                    set workerPath to resourceFolder & "FilterSecurityCameraWorker.sh"
+                    set cmd to quoted form of workerPath & " " & msgID & " " & (quoted form of accName) & " > /dev/null 2>&1 &"
+                    do shell script cmd
                     
                 on error errMsg
                     -- If the handoff fails, log it to a notification for debugging
