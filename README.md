@@ -13,11 +13,11 @@ Installation
 
     make
 
-2. Install the script bundle (requires `osacompile` to produce a compiled script bundle; the Makefile falls back to a manual assembly when `osacompile` is unavailable):
+2. Install the script bundle (requires `osacompile` to produce a compiled script bundle):
 
     make install
 
-This places `Revisor.scptd` in `~/Library/Application Scripts/com.apple.mail`. The compiled AppleScript will live at `Revisor.scptd/Contents/Resources/Scripts/main.scpt` and the bundled binary is located at `Revisor.scptd/Contents/Resources/FilterSecurityCamera`.
+This places `Revisor.scptd` bundle in `~/Library/Application Scripts/com.apple.mail`. The compiled AppleScript will live at `Revisor.scptd/Contents/Resources/Scripts/main.scpt` and the bundled binary is located at `Revisor.scptd/Contents/Resources/FilterSecurityCamera`.
 
 Usage
 
@@ -25,7 +25,7 @@ Usage
 
     ./FilterSecurityCamera [options] <file-or-dir> [more...]
 
-- Configure Mail: create a rule that runs the compiled `main.scpt` (the Mail rule should call the script bundle's `main.scpt`). The AppleScript locates the worker script inside the bundle and hands off message processing to it.
+- Configure Mail: create a rule that runs AppleScript bundle Revisor. The AppleScript locates the worker script inside the bundle and hands off message processing to it.
 
 Options
 
@@ -39,18 +39,8 @@ Options
 
 Notes
 
-- Exit codes: 0 if at least one image across inputs matched; 1 otherwise.
-- The AppleScript locates resources using POSIX path of (path to resource workerName). For example:
-
-  set workerPath to POSIX path of (path to resource workerName)
-
-  This ensures the worker and binary are located inside the bundle and avoids hardcoded paths.
-
-Development
-
-- The AppleScript source is `FilterSecurityCamera.applescript` (compiled during install into the bundle).
-- The worker script is `FilterSecurityCameraWorker.sh` and is installed into the bundle Resources.
-
+- Exit codes: 0 if at least one image across inputs matched; 1 if none matched, other code means error.
+  
 License
 
 MIT — see LICENSE
@@ -62,5 +52,3 @@ Revisor writes debug logs exclusively to /var/log/revisor.log. If that file is m
 Logs include local-time timestamps and a component tag (e.g., [installer], [worker], [CLI], [AppleScript]).
 
 The worker script logs every processing stage: attachment saving, number of files found, per-file tool invocation and its full output, detection results, message move actions, and cleanup.
-
-If you prefer a different log location, adjust the scripts to set LOG_FILE accordingly.
