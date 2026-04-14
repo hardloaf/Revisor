@@ -23,7 +23,7 @@ TOOL_PATH="$WORKER_DIR/FilterSecurityCamera"
 LOG_FILE="/var/log/revisor.log"
 
 log() {
-    ts="$(date +'%Y-%m-%d %H:%M:%S%z')"
+    ts="$(date +'%Y-%m-%d %H:%M:%S%z') $MSG_ID"
     # attempt to append to the log; suppress errors if file is not writable/doesn't exist
     echo "$ts [worker] $*" >> "$LOG_FILE" 2>/dev/null || true
 }
@@ -34,47 +34,72 @@ if [ ! -x "$TOOL_PATH" ]; then
     log "Warning: FilterSecurityCamera not found or not executable at $TOOL_PATH"
 fi
 
-# 1. Wait a moment for Mail to finish writing the database entry
-sleep 2
-
-# 2. Create a unique temp folder
 mkdir -p "$TEMP_DIR"
 # Allow the glob to expand to an empty list instead of the literal pattern
 shopt -s nullglob
 
 log "Created temp dir $TEMP_DIR"
 
-# 3. Tell Mail to save attachments via osascript (backgrounded)
-log "Saving attachments via osascript"
-osascript <<EOD >> "$LOG_FILE" 2>&1
-tell application "Mail"
-    set theAccount to account "$ACCOUNT_NAME"
-    set theMessage to first message of (mailbox "INBOX" of theAccount) whose id is $MSG_ID
-    set theAttachments to every mail attachment of theMessage
-    
-    -- Convert POSIX path to HFS path for Mail sandbox
-    set folderHFS to (POSIX file "$TEMP_DIR") as string
-    
-    repeat with eachAttachment in theAttachments
-        set attachmentName to name of eachAttachment
-        set savePath to folderHFS & attachmentName
-        save eachAttachment in file savePath
-    end repeat
-end tell
-EOD
-if [ $? -ne 0 ]; then
-    rm -rf "$TEMP_DIR"
-    log "Cleaned up temp dir $TEMP_DIR"
-    exit
-fi
+MAX_RETRIES=3
+RETRY_COUNT=0
+SUCCESS=false
 
-# 4. Wait for files to actually appear (handled by the system)
-sleep 2
+log "Starting attachment extraction for Message ID: $MSG_ID"
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+
+    # Run the osascript and capture exit status
+    osascript <<EOD >> "$LOG_FILE" 2>&1
+    tell application "Mail"
+        try
+            set theAccount to account "$ACCOUNT_NAME"
+            -- set theMessage to first message of (mailbox "INBOX" of theAccount) whose message id is "$MSG_ID"
+            repeat with theMailbox in mailboxes of theAccount
+                try
+                    set foundMessages to (every message of theMailbox whose message id is "$MSG_ID")
+                    if (count of foundMessages) > 0 then
+                        set theMessage to item 1 of foundMessages
+                        exit repeat
+                    end if
+                end try
+            end repeat
+            set theAttachments to every mail attachment of theMessage
+            
+            -- Convert POSIX path to HFS path for Mail sandbox
+            set folderHFS to (POSIX file "$TEMP_DIR") as string
+            
+            repeat with eachAttachment in theAttachments
+                set attachmentName to name of eachAttachment
+                set savePath to folderHFS & attachmentName
+                save eachAttachment in file savePath
+            end repeat
+        on error errMsg
+            -- If Mail fails, we exit with an error so Bash sees the failure
+            error "AppleScript failed: " & errMsg
+        end try
+    end tell
+EOD
+
+    if [ $? -eq 0 ]; then
+        log "Successfully saved attachments on attempt $RETRY_COUNT"
+        SUCCESS=true
+        break
+    else
+        log "Attempt $RETRY_COUNT failed. Retrying in 3s..."
+        sleep 3
+    fi
+done
+
+if [ "$SUCCESS" = false ]; then
+    log "ERROR: Failed to save attachments after $MAX_RETRIES attempts. Exiting."
+    rm -rf "$TEMP_DIR"
+    exit 1
+fi
 
 count=$(ls -1 "$TEMP_DIR" 2>/dev/null | wc -l || true)
 log "Attachment save complete. Files in $TEMP_DIR: $count"
 
-# 5. Process the images
 DONT_MOVE=true
 for img in "$TEMP_DIR"/*; do
     if [ -f "$img" ]; then
@@ -85,24 +110,35 @@ for img in "$TEMP_DIR"/*; do
         log "Tool exit code $status for $img"
         if [ $status -eq 0 ]; then
             log "Match found in $img"
+            DONT_MOVE=true
             break
         elif [ $status -eq 1 ]; then
             log "No match in $img"
             DONT_MOVE=false
         else
             log "Tool failed $img"
+            DONT_MOVE=true
             break;
         fi
     fi
 done
 
-# 6. If no person was found, tell Mail to trash it
 if [ "$DONT_MOVE" = false ]; then
     log "No person detected in any attachments; moving message to Trash"
     osascript <<EOD  >> "$LOG_FILE" 2>&1
     tell application "Mail"
         set theAccount to account "$ACCOUNT_NAME"
-        set theMessage to first message of (mailbox "INBOX" of theAccount) whose id is $MSG_ID
+        -- set theMessage to first message of (mailbox "INBOX" of theAccount) whose message id is "$MSG_ID"
+        repeat with theMailbox in mailboxes of theAccount
+            try
+                set foundMessages to (every message of theMailbox whose message id is "$MSG_ID")
+                if (count of foundMessages) > 0 then
+                    set theMessage to item 1 of foundMessages
+                    exit repeat
+                end if
+            end try
+        end repeat
+
         set read status of theMessage to true
         move theMessage to mailbox "Trash" of theAccount
     end tell
@@ -116,6 +152,5 @@ else
     log "Person detected; leaving message in mailbox"
 fi
 
-# 7. Clean up
 rm -rf "$TEMP_DIR"
 log "Cleaned up temp dir $TEMP_DIR"

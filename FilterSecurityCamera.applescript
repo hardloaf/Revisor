@@ -19,7 +19,7 @@ using terms from application "Mail"
         tell application "Mail"
             repeat with eachMessage in theMessages
                 try
-                    set msgID to id of eachMessage
+                    set msgID to message id of eachMessage
                     set accName to name of account of mailbox of eachMessage
                     
                     -- Construct the command
