@@ -5,7 +5,7 @@ tell application "Mail"
 	end if
 	
 	set theMessage to item 1 of selectedMessages
-	set theID to id of theMessage
+	set theID to message id of theMessage
 	
 	-- Fix: Access the account through the mailbox hierarchy
 	try
