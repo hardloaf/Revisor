@@ -13,10 +13,10 @@ BUNDLE_DIR="$PREFIX/Revisor.scptd"
 RES_DIR="$BUNDLE_DIR/Contents/Resources"
 SCRIPTS_DIR="$RES_DIR/Scripts"
 
-# Logging target: strictly /var/log/revisor.log. If not writable, logging is skipped.
-LOG_FILE="/var/log/revisor.log"
+# If log not writable, logging is skipped.
+LOG_FILE="$HOME/Downloads/.tmp/revisor.log"
 log() {
-  ts="$(date +'%Y-%m-%d %H:%M:%S%z')"
+  ts="[$(date +'%Y-%m-%d %H:%M:%S')]"
   echo "$ts [installer] $*" >> "$LOG_FILE" 2>/dev/null || true
 }
 
